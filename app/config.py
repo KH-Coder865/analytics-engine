@@ -1,13 +1,15 @@
 from pathlib import Path
 
+from dotenv import load_dotenv
 
-# Project root
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Dataset directory
+load_dotenv(BASE_DIR / ".env")
+
+
 DATASET_DIR = BASE_DIR / "dataset"
 
-# Dataset files
 SALES_DATA_PATH = DATASET_DIR / "sales_data.csv"
 TARGETS_DATA_PATH = DATASET_DIR / "targets.csv"
 DATA_DICTIONARY_PATH = DATASET_DIR / "data_dictionary.json"
