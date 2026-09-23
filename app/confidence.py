@@ -1,20 +1,26 @@
-def calculate_confidence(plan):
+def calculate_confidence(plan, validation):
 
-    score = 0.0
+    if not validation["valid"]:
+        return 0.0
 
-    if plan.get("metric"):
-        score += 0.25
+    score = 0.40
 
-    if plan.get("operation"):
-        score += 0.30
-
-    if plan.get("dimension"):
-        score += 0.20
-
-    if plan.get("country") or plan.get("month"):
+    if plan.metric:
         score += 0.15
 
-    if plan.get("limit") is not None:
+    if plan.operation:
+        score += 0.15
+
+    if plan.group_by:
         score += 0.10
+
+    if plan.filters:
+        score += 0.10
+
+    if plan.sort:
+        score += 0.05
+
+    if plan.limit:
+        score += 0.05
 
     return round(min(score, 1.0), 2)

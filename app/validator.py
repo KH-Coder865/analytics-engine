@@ -15,6 +15,9 @@ ALLOWED_DIMENSIONS = {
     "product_subcategory",
     "product_name",
     "order_date",
+    "month",
+    "year",
+    "quarter",
 }
 
 
@@ -22,25 +25,31 @@ def validate_plan(plan):
 
     errors = []
 
-    metric = plan.get("metric")
-    dimension = plan.get("dimension")
-
-    if metric and metric not in ALLOWED_METRICS:
+    if plan.metric not in ALLOWED_METRICS:
         errors.append(
-            f"Unsupported metric: {metric}"
+            f"Unsupported metric: {plan.metric}"
         )
 
-    if dimension and dimension not in ALLOWED_DIMENSIONS:
-        errors.append(
-            f"Unsupported dimension: {dimension}"
-        )
+    for dimension in plan.group_by:
 
-    limit = plan.get("limit")
-
-    if limit is not None:
-        if not isinstance(limit, int) or limit <= 0:
+        if dimension not in ALLOWED_DIMENSIONS:
             errors.append(
-                "Limit must be a positive integer."
+                f"Unsupported dimension: {dimension}"
+            )
+
+    for filter_item in plan.filters:
+
+        if filter_item.column not in ALLOWED_DIMENSIONS:
+            errors.append(
+                f"Unsupported filter column: "
+                f"{filter_item.column}"
+            )
+
+    if plan.limit is not None:
+
+        if plan.limit <= 0:
+            errors.append(
+                "Limit must be greater than zero."
             )
 
     return {

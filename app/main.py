@@ -1,67 +1,107 @@
 from .data_loader import (
     load_sales_data,
     load_targets,
+    load_data_dictionary,
 )
 
-from .query_parser import parse_query
-from .query_engine import QueryEngine
+from .llm_parser import LLMQueryParser
+from .query_executor import QueryExecutor
 from .validator import validate_plan
 from .confidence import calculate_confidence
-from .explainer import explain_query
 
 
 def run_query(query):
 
+    # -------------------------
+    # Load data
+    # -------------------------
+
     sales_df = load_sales_data()
     targets_df = load_targets()
+    data_dictionary = load_data_dictionary()
 
-    parser_output = parse_query(query)
+    # -------------------------
+    # Parse using LLM
+    # -------------------------
 
-    validation = validate_plan(parser_output)
+    parser = LLMQueryParser(
+        data_dictionary
+    )
+
+    plan = parser.parse(query)
+
+    # -------------------------
+    # Validate
+    # -------------------------
+
+    validation = validate_plan(plan)
 
     if not validation["valid"]:
+
         return {
             "query": query,
-            "error": validation["errors"],
+            "plan": plan.model_dump(),
+            "result": None,
+            "confidence": 0.0,
+            "errors": validation["errors"],
         }
 
-    confidence = calculate_confidence(parser_output)
+    # -------------------------
+    # Confidence
+    # -------------------------
 
-    engine = QueryEngine(
+    confidence = calculate_confidence(
+        plan,
+        validation
+    )
+
+    # -------------------------
+    # Execute
+    # -------------------------
+
+    executor = QueryExecutor(
         sales_df,
         targets_df
     )
 
-    result = engine.execute(parser_output)
-
-    explanation = explain_query(
-        query,
-        parser_output,
-        confidence
-    )
+    result = executor.execute(plan)
 
     return {
         "query": query,
-        "plan": parser_output,
+        "plan": plan.model_dump(),
         "result": result,
-        "explanation": explanation,
+        "confidence": confidence,
     }
 
 
 if __name__ == "__main__":
 
-    queries = [
-        "Total sales in India for March",
-        "Top 2 cities by profit",
-        "Average order value by region",
-    ]
+    query = input(
+        "Enter your analytics query: "
+    )
 
-    for query in queries:
+    response = run_query(query)
 
-        print("\n" + "=" * 60)
-        print(query)
-        print("=" * 60)
+    print("\n" + "=" * 60)
+    print("QUERY")
+    print("=" * 60)
 
-        response = run_query(query)
+    print(response["query"])
 
-        print(response)
+    print("\n" + "=" * 60)
+    print("PLAN")
+    print("=" * 60)
+
+    print(response["plan"])
+
+    print("\n" + "=" * 60)
+    print("RESULT")
+    print("=" * 60)
+
+    print(response["result"])
+
+    print("\n" + "=" * 60)
+    print("CONFIDENCE")
+    print("=" * 60)
+
+    print(response["confidence"])

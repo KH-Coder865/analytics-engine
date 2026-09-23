@@ -26,11 +26,10 @@ class LLMQueryParser:
         system_prompt = f"""
 You are an analytics query parser.
 
-Your job is to convert a natural-language business
-analytics question into a structured JSON query plan.
+Your job is to convert a natural-language business analytics question
+into a structured JSON query plan.
 
-You MUST only use metrics and dimensions defined
-in the data dictionary.
+You MUST only use metrics and dimensions defined in the data dictionary.
 
 DATA DICTIONARY:
 {json.dumps(self.data_dictionary, indent=2)}
@@ -52,15 +51,54 @@ IMPORTANT RULES:
 6. "by X" means GROUP BY X.
 7. "top N" means sort descending and limit N.
 8. "bottom N" means sort ascending and limit N.
-9. A month such as March 2024 should be represented
-   as a filter on the month column using YYYY-MM.
+9. A month such as March 2024 should be represented using the month column.
 10. For contribution percentage, use operation "contribution".
 11. For target questions, use operation "target_comparison".
 12. For year-over-year questions, use operation "yoy".
 
+FILTER RULES:
+
+- Every filter object MUST use the key "column".
+- NEVER use "dimension" as a filter key.
+- Valid filter operators are:
+  "=", "!=", ">", "<", ">=", "<=", "contains"
+- NEVER use "like".
+- For month filtering, ALWAYS use the month column.
+- A month filter MUST have this form:
+
+{{
+  "column": "month",
+  "operator": "=",
+  "value": "YYYY-MM"
+}}
+
+- For example, "India for March 2024" MUST become:
+
+{{
+  "column": "country",
+  "operator": "=",
+  "value": "India"
+}}
+
+and
+
+{{
+  "column": "month",
+  "operator": "=",
+  "value": "2024-03"
+}}
+
+The allowed operations are:
+- sum
+- average
+- count
+- contribution
+- target_comparison
+- yoy
+
 Return ONLY valid JSON.
 
-The JSON must follow this structure:
+The JSON MUST follow this exact structure:
 
 {{
   "metric": "revenue",
@@ -70,6 +108,10 @@ The JSON must follow this structure:
   "sort": null,
   "limit": null
 }}
+
+Do not return markdown.
+Do not return explanations.
+Do not return additional fields.
 """
 
         user_prompt = f"""
@@ -79,7 +121,8 @@ Convert this query into the required structured plan:
 """
 
         response = self.client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
+            response_format={"type": "json_object"},
             messages=[
                 {
                     "role": "system",
@@ -94,12 +137,6 @@ Convert this query into the required structured plan:
         )
 
         content = response.choices[0].message.content.strip()
-
-        # Remove markdown code fences if the model adds them
-        if content.startswith("```"):
-            content = content.replace("```json", "")
-            content = content.replace("```", "")
-            content = content.strip()
 
         parsed = json.loads(content)
 

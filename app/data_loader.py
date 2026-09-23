@@ -35,10 +35,10 @@ def load_targets():
 
 
 def load_data_dictionary():
-    with open(DATA_DICTIONARY_PATH, "r", encoding="utf-8") as f:
+    with open(DATA_DICTIONARY_PATH, "r", encoding="utf-8-sig") as f:
         return json.load(f)
 
 
 def load_nl_queries():
-    with open(NL_QUERIES_PATH, "r", encoding="utf-8") as f:
+    with open(NL_QUERIES_PATH, "r", encoding="utf-8-sig") as f:
         return json.load(f)
