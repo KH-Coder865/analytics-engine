@@ -107,7 +107,22 @@ class QueryExecutor:
         # -------------------------
 
         if plan.limit:
-            result = result.head(plan.limit)
+
+            # For grouped "top N / bottom N" queries,
+            # return N rows within each group.
+            if len(plan.group_by) > 1:
+
+                group_columns = plan.group_by[:-1]
+
+                result = (
+                    result
+                    .groupby(group_columns, group_keys=False)
+                    .head(plan.limit)
+                    .reset_index(drop=True)
+                )
+
+            else:
+                result = result.head(plan.limit)
 
         return result.to_dict(orient="records")
 
@@ -404,8 +419,11 @@ class QueryExecutor:
             how="left"
         )
 
+        result["target_available"] = result["target_revenue"].notna()
+
         result["missed_target"] = (
-            result["revenue"] < result["target_revenue"]
+            result["target_available"]
+            & (result["revenue"] < result["target_revenue"])
         )
 
         return result

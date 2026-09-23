@@ -1,235 +1,222 @@
 # Intelligent Analytics Query Engine
 
-An AI-assisted analytics query engine that converts natural-language
-business questions into **structured, validated, and executable
-analytical queries** over tabular sales data.
+An AI-assisted analytics query engine that converts **natural-language business questions into structured, validated, and executable analytical queries** over tabular sales data.
 
-The project combines **GenAI/NLP interpretation** with a **controlled
-pandas execution layer**. The language model is responsible for
-understanding the user's intent and producing a structured query plan,
-while validation and execution remain deterministic and constrained.
+The system combines **GenAI/NLP interpretation** with a **controlled Pandas execution layer**. The language model is responsible for understanding the user's intent and producing a structured query plan, while validation, confidence scoring, and analytical execution remain deterministic and constrained.
 
-------------------------------------------------------------------------
-
-## 1. Project Overview
-
-Business users often want to ask questions such as:
-
--   "Total sales in India for March"
--   "Top 2 cities by profit"
--   "Average order value by region"
--   "Which region missed its target in Feb?"
--   "Sales contribution % by category"
-
-Traditional analytics systems usually require the user to know SQL,
-Python, or a predefined dashboard structure.
-
-This project provides a natural-language interface:
-
-``` text
-Natural Language Query
-        ↓
-     LLM Parser
-        ↓
- Structured Query Plan
-        ↓
- Pydantic Validation
-        ↓
- Confidence Estimation
-        ↓
- Controlled Pandas Execution
-        ↓
-     Analytical Result
-```
-
-The key design principle is:
+The core design principle is:
 
 > **The LLM interprets the query; it does not execute arbitrary code.**
 
-This keeps the system flexible enough to understand natural language
-while keeping analytical execution deterministic and constrained.
+This allows the system to provide flexible natural-language interaction while keeping analytical execution predictable, testable, and controlled.
 
-------------------------------------------------------------------------
+---
 
-## 2. Features
+## 1. Project Overview
 
-### Natural-language analytics
+Business users often want answers to questions such as:
 
-Users can ask business questions using ordinary language rather than
-writing SQL or Python.
+* "Total sales in India for March"
+* "Top 2 cities by profit"
+* "Average order value by region"
+* "Which region missed its target in Feb?"
+* "Sales contribution % by category"
+* "Top product in each region"
+* "Revenue of top 3 customers per region"
 
-### GenAI-powered query parsing
+Traditional analytics systems often require users to know SQL, Python, or how to navigate a predefined dashboard.
 
-The system uses a Groq-hosted LLM to translate natural-language
-questions into a structured `QueryPlan`.
+This project provides a natural-language interface over a structured sales dataset.
 
-### Structured query plans
+### Query Processing Pipeline
 
-Instead of allowing the LLM to generate arbitrary Python or SQL, the
-model must return a constrained JSON structure containing fields such
-as:
-
--   metric
--   operation
--   group-by dimensions
--   filters
--   sorting
--   result limit
-
-### Schema validation
-
-Pydantic validates the LLM-generated query plan before it reaches the
-execution layer.
-
-### Controlled execution
-
-The executor uses predefined pandas operations rather than executing
-generated code.
-
-### Business metric definitions
-
-The data dictionary provides canonical definitions and synonyms, for
-example:
-
-``` text
-sales → revenue
-income → revenue
-earnings → profit
-orders → count(order_id)
-aov → avg_order_value
+```text
+Natural Language Query
+          │
+          ▼
+     LLM Parser
+          │
+          ▼
+   Structured QueryPlan
+          │
+          ▼
+  Pydantic Validation
+          │
+          ▼
+ Semantic Validation
+          │
+          ▼
+ Confidence Scoring
+          │
+          ▼
+ Controlled Pandas Execution
+          │
+          ▼
+    Analytical Result
+          │
+          ▼
+ Explanation + JSON Response
 ```
 
-Revenue is defined as:
+The LLM is deliberately separated from the execution layer.
 
-``` text
-quantity × unit_price × (1 - discount)
+Instead of generating arbitrary Python or SQL, the model produces a constrained `QueryPlan` that can only express operations supported by the application.
+
+---
+
+# 2. Expected Output Format
+
+Every successfully processed query is exposed through the following application-level response structure:
+
+```json
+{
+  "query": "Total sales in India for March",
+  "generated_logic": "{\"metric\":\"revenue\",\"operation\":\"sum\",...}",
+  "result": [
+    {
+      "value": 108.0
+    }
+  ],
+  "confidence_score": 0.8,
+  "explanation": "Computed sum of revenue with filters: country = India, month = 2024-03."
+}
 ```
 
-### Confidence scoring
+The fields have the following meaning:
 
-Each successfully validated query receives a confidence score between
-`0` and `1`.
+| Field              | Description                                                 |
+| ------------------ | ----------------------------------------------------------- |
+| `query`            | Original natural-language question                          |
+| `generated_logic`  | Structured analytical plan generated by the LLM             |
+| `result`           | Result produced by the deterministic execution layer        |
+| `confidence_score` | Deterministic confidence estimate between `0` and `1`       |
+| `explanation`      | Human-readable description of how the query was interpreted |
 
-The current implementation uses deterministic signals from the generated
-plan rather than allowing the LLM to freely invent a confidence value.
+The outer response is generated by the application layer rather than being freely generated by the LLM.
 
-### Benchmark dataset
+---
 
-The repository contains a set of natural-language benchmark queries with
-expected analytical logic.
+# 3. Design Constraints
 
-### Extensible architecture
+The project is designed around three important constraints.
 
-The query representation can be extended to support more advanced
-analytical operations such as:
+### No hardcoded answers
 
--   ranking
--   top-N per group
--   nested aggregations
--   window-style operations
--   additional time-series analysis
+The system does not hardcode the answers to the benchmark questions.
 
-------------------------------------------------------------------------
+The benchmark queries are interpreted through the same natural-language parsing and execution pipeline used for other queries.
 
-## 3. Tech Stack
+The analytical values are calculated from the dataset at runtime.
 
-  Component                   Technology
-  --------------------------- ----------------------
-  Language                    Python
-  Data processing             Pandas
-  Numerical processing        NumPy
-  LLM provider                Groq
-  LLM model                   `openai/gpt-oss-20b`
-  Schema validation           Pydantic
-  Environment configuration   python-dotenv
-  Testing                     pytest
-  Query execution             Pandas
-  Data format                 CSV / JSON
+### Support unseen queries
 
-------------------------------------------------------------------------
+The parser is not designed around exact string matching.
 
-## 4. Project Structure
+For example, different queries expressing the same intent can map to the same analytical plan:
 
-``` text
-analytics-engine/
-│
-├── app/
-│   ├── __init__.py
-│   ├── config.py
-│   ├── data_loader.py
-│   ├── llm_parser.py
-│   ├── schemas.py
-│   ├── validator.py
-│   ├── confidence.py
-│   ├── query_executor.py
-│   ├── main.py
-│   │
-│   ├── query_parser.py
-│   ├── query_engine.py
-│   └── explainer.py
-│
-├── dataset/
-│   ├── sales_data.csv
-│   ├── targets.csv
-│   ├── data_dictionary.json
-│   └── nl_queries.json
-│
-├── tests/
-│
-├── test.py
-├── requirements.txt
-├── .env
-├── .gitignore
-└── README.md
+```text
+Show sales for India in March
 ```
 
-### Main modules
+and:
 
-#### `app/config.py`
-
-Contains project paths and environment configuration.
-
-It defines the locations of:
-
--   sales data
--   target data
--   data dictionary
--   benchmark queries
-
-------------------------------------------------------------------------
-
-#### `app/data_loader.py`
-
-Loads the datasets and performs initial preprocessing.
-
-The sales dataset receives additional derived columns:
-
-``` text
-year
-month
-quarter
-revenue
+```text
+What was the revenue generated in India during March?
 ```
 
-Revenue is calculated as:
+can both be interpreted as a revenue aggregation filtered by India and March 2024.
 
-``` python
-df["revenue"] = (
-    df["quantity"]
-    * df["unit_price"]
-    * (1 - df["discount"])
-)
+The supported query language is constrained by the available metrics, dimensions, and operations, but the natural-language phrasing itself is not limited to the benchmark examples.
+
+### System design over UI
+
+The primary focus is the analytical architecture:
+
+```text
+Natural Language
+       ↓
+LLM Interpretation
+       ↓
+Structured Plan
+       ↓
+Validation
+       ↓
+Deterministic Execution
+       ↓
+Result
 ```
 
-------------------------------------------------------------------------
+A graphical interface is not required for the core system.
 
-#### `app/schemas.py`
+---
 
-Defines the structured query representation using Pydantic.
+# 4. Features
 
-The current query plan contains:
+## Natural-Language Analytics
 
-``` text
+Users can ask analytical questions using ordinary business language rather than writing SQL or Python.
+
+Examples:
+
+```text
+Total sales in India for March
+```
+
+```text
+Top 2 cities by profit
+```
+
+```text
+Average order value by region
+```
+
+```text
+Which region missed its target in Feb?
+```
+
+```text
+Revenue of top 3 customers per region
+```
+
+---
+
+## GenAI-Powered Query Parsing
+
+The system uses a Groq-hosted LLM to convert natural-language questions into a structured `QueryPlan`.
+
+The model is instructed using:
+
+* the dataset schema
+* the data dictionary
+* metric definitions
+* dimension definitions
+* supported operations
+* filter rules
+* ranking rules
+* temporal interpretation rules
+* examples of valid query plans
+
+The current model is:
+
+```text
+openai/gpt-oss-20b
+```
+
+with deterministic generation:
+
+```text
+temperature = 0
+```
+
+---
+
+## Structured Query Plans
+
+The LLM does not generate executable Python or SQL.
+
+Instead, it produces a constrained structure containing fields such as:
+
+```text
 metric
 operation
 group_by
@@ -238,269 +225,9 @@ sort
 limit
 ```
 
-This schema acts as the contract between the LLM and the execution
-engine.
+For example:
 
-------------------------------------------------------------------------
-
-#### `app/llm_parser.py`
-
-Responsible for converting natural-language questions into a
-`QueryPlan`.
-
-The parser:
-
-1.  Loads the data dictionary.
-2.  Provides metric and dimension definitions to the LLM.
-3.  Provides explicit parsing rules.
-4.  Requests JSON output.
-5.  Parses the returned JSON.
-6.  Validates it using the Pydantic schema.
-
-The model is configured with:
-
-``` text
-openai/gpt-oss-20b
-```
-
-and deterministic temperature:
-
-``` text
-temperature = 0
-```
-
-------------------------------------------------------------------------
-
-#### `app/validator.py`
-
-Performs additional validation of the generated query plan.
-
-It checks:
-
--   supported metrics
--   supported dimensions
--   supported filter columns
--   valid limits
-
-This provides a second layer of protection after Pydantic validation.
-
-------------------------------------------------------------------------
-
-#### `app/confidence.py`
-
-Calculates a deterministic confidence score.
-
-The score considers whether the generated plan contains expected
-components such as:
-
--   metric
--   operation
--   grouping
--   filters
--   sorting
--   limit
-
-Invalid plans receive:
-
-``` text
-0.0
-```
-
-------------------------------------------------------------------------
-
-#### `app/query_executor.py`
-
-Executes validated query plans using pandas.
-
-It currently supports operations including:
-
-``` text
-sum
-average
-count
-contribution
-target_comparison
-yoy
-```
-
-Supported metrics include:
-
-``` text
-revenue
-profit
-orders
-avg_order_value
-```
-
-The executor is deliberately separated from the LLM so that generated
-natural-language interpretation cannot directly execute arbitrary
-Python.
-
-------------------------------------------------------------------------
-
-#### `app/main.py`
-
-Provides the main application flow.
-
-The `run_query()` function performs:
-
-``` text
-Load data
-    ↓
-Load dictionary
-    ↓
-Parse natural language
-    ↓
-Validate plan
-    ↓
-Calculate confidence
-    ↓
-Execute query
-    ↓
-Return structured response
-```
-
-------------------------------------------------------------------------
-
-#### `test.py`
-
-Runs the benchmark queries from:
-
-``` text
-dataset/nl_queries.json
-```
-
-and prints the query together with its result.
-
-This provides a simple end-to-end evaluation of the query engine.
-
-------------------------------------------------------------------------
-
-## 5. Dataset
-
-The project uses four dataset/configuration files.
-
-### `sales_data.csv`
-
-Contains the transactional sales data.
-
-Important fields include:
-
-``` text
-order_id
-order_date
-region
-country
-city
-customer_id
-customer_segment
-product_category
-product_subcategory
-product_name
-quantity
-unit_price
-discount
-shipping_cost
-profit
-```
-
-The engine derives:
-
-``` text
-year
-month
-quarter
-revenue
-```
-
-from the raw data.
-
-------------------------------------------------------------------------
-
-### `targets.csv`
-
-Contains regional monthly revenue targets.
-
-Example:
-
-``` text
-region,month,target_revenue
-APAC,2024-01,5000
-APAC,2024-02,6000
-APAC,2024-03,7000
-```
-
-This enables target-comparison queries.
-
-------------------------------------------------------------------------
-
-### `data_dictionary.json`
-
-Defines the semantic vocabulary of the analytics engine.
-
-Example:
-
-``` json
-{
-  "metrics": {
-    "revenue": "quantity * unit_price * (1 - discount)",
-    "profit": "profit",
-    "orders": "count(order_id)",
-    "avg_order_value": "revenue / orders"
-  }
-}
-```
-
-It also contains:
-
--   supported dimensions
--   synonyms
--   time mappings
-
-The dictionary is passed to the LLM so that the model works against the
-same semantic definitions used by the executor.
-
-------------------------------------------------------------------------
-
-### `nl_queries.json`
-
-Contains the natural-language benchmark questions and their expected
-analytical logic.
-
-The current benchmark includes eight queries covering:
-
-1.  Filtered aggregation
-2.  Top-N ranking
-3.  Grouped average order value
-4.  Target comparison
-5.  Contribution percentage
-6.  Per-group top product
-7.  Year-over-year growth
-8.  Nested top-customer analysis
-
-------------------------------------------------------------------------
-
-## 6. Query Processing Pipeline
-
-A query travels through several layers.
-
-### Step 1 --- Natural-language input
-
-Example:
-
-``` text
-Total sales in India for March
-```
-
-------------------------------------------------------------------------
-
-### Step 2 --- LLM interpretation
-
-The LLM converts the question into a structured plan.
-
-Conceptually:
-
-``` json
+```json
 {
   "metric": "revenue",
   "operation": "sum",
@@ -522,15 +249,28 @@ Conceptually:
 }
 ```
 
-------------------------------------------------------------------------
+This structured representation acts as the contract between the natural-language layer and the execution engine.
 
-### Step 3 --- Schema validation
+---
 
-Pydantic checks that the generated JSON follows the expected structure.
+## Schema Validation
 
-For example, operators are restricted to:
+Pydantic validates the generated query plan before execution.
 
-``` text
+For example, operations are restricted to:
+
+```text
+sum
+average
+count
+contribution
+target_comparison
+yoy
+```
+
+and filter operators are restricted to:
+
+```text
 =
 !=
 >
@@ -540,160 +280,762 @@ For example, operators are restricted to:
 contains
 ```
 
-This prevents unsupported structures from reaching the executor.
+Malformed or structurally invalid plans are rejected before reaching the execution layer.
 
-------------------------------------------------------------------------
+---
 
-### Step 4 --- Semantic validation
+## Semantic Validation
 
-The validator checks that:
+A second validation layer checks application-specific constraints, including:
 
--   the metric exists
--   dimensions are supported
--   filter columns are supported
--   limits are valid
+* supported metrics
+* supported dimensions
+* supported filter columns
+* valid limits
+* valid operations
 
-------------------------------------------------------------------------
+This provides protection beyond basic JSON/schema validation.
 
-### Step 5 --- Confidence calculation
+---
 
-A deterministic confidence score is generated from the validated plan.
+## Controlled Execution
 
-------------------------------------------------------------------------
+The executor translates the validated query plan into predefined Pandas operations.
 
-### Step 6 --- Controlled execution
+The LLM therefore never directly executes:
 
-The query executor maps the plan to known pandas operations.
+```python
+eval(...)
+```
+
+or:
+
+```python
+exec(...)
+```
+
+and does not generate unrestricted executable code.
 
 For example:
 
-``` text
+```text
 metric = revenue
 operation = sum
-filter = country == India
-filter = month == 2024-03
+country = India
+month = 2024-03
 ```
 
-becomes a controlled pandas aggregation rather than generated Python
-code.
+is translated into controlled dataframe filtering and aggregation.
 
-------------------------------------------------------------------------
+---
 
-### Step 7 --- Result
+## Business Metric Definitions
 
-The result is returned as a pandas DataFrame internally and converted to
-JSON-compatible output by the benchmark runner.
+The system uses a data dictionary to provide a canonical analytical vocabulary.
 
-------------------------------------------------------------------------
+Examples include:
 
-## 7. Supported Query Types
+```text
+sales    → revenue
+income   → revenue
+earnings → profit
+orders   → count(order_id)
+aov      → avg_order_value
+```
 
-### 7.1 Simple aggregation
+Revenue is defined as:
+
+```text
+quantity × unit_price × (1 - discount)
+```
+
+Average order value is calculated as:
+
+```text
+SUM(revenue) / COUNT(order_id)
+```
+
+The same definitions are used to ground the LLM and the execution layer.
+
+---
+
+## Confidence Scoring
+
+Each validated query receives a deterministic confidence score between `0` and `1`.
+
+The current implementation uses signals from the generated query plan rather than asking the LLM to invent a confidence value.
+
+The initial scoring model uses a base score of:
+
+```text
+0.40
+```
+
+with additional contributions from relevant plan components.
+
+The final score is capped at:
+
+```text
+1.0
+```
+
+The current implementation is intentionally lightweight and heuristic rather than statistically calibrated.
+
+---
+
+# 5. Tech Stack
+
+| Component                 | Technology           |
+| ------------------------- | -------------------- |
+| Language                  | Python               |
+| Data Processing           | Pandas               |
+| Numerical Processing      | NumPy                |
+| LLM Provider              | Groq                 |
+| LLM Model                 | `openai/gpt-oss-20b` |
+| Schema Validation         | Pydantic             |
+| Environment Configuration | python-dotenv        |
+| Testing                   | pytest               |
+| Query Execution           | Pandas               |
+| Data Formats              | CSV / JSON           |
+
+---
+
+# 6. Project Structure
+
+```text
+analytics-engine/
+│
+├── app/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── data_loader.py
+│   ├── llm_parser.py
+│   ├── schemas.py
+│   ├── validator.py
+│   ├── confidence.py
+│   ├── query_executor.py
+│   └── main.py
+│
+├── dataset/
+│   ├── sales_data.csv
+│   ├── targets.csv
+│   ├── data_dictionary.json
+│   └── nl_queries.json
+│
+├── tests/
+│
+├── test.py
+├── requirements.txt
+├── .env
+├── .gitignore
+└── README.md
+```
+
+---
+
+# 7. Main Modules
+
+## `app/config.py`
+
+Contains project configuration and dataset paths.
+
+It defines locations for:
+
+* sales data
+* target data
+* data dictionary
+* benchmark queries
+
+---
+
+## `app/data_loader.py`
+
+Loads and preprocesses the datasets.
+
+The sales dataset receives the following derived columns:
+
+```text
+year
+month
+quarter
+revenue
+```
+
+Revenue is calculated using:
+
+```python
+df["revenue"] = (
+    df["quantity"]
+    * df["unit_price"]
+    * (1 - df["discount"])
+)
+```
+
+The loader also preserves literal values such as `"NA"` in the region column rather than allowing them to be interpreted as missing values.
+
+---
+
+## `app/schemas.py`
+
+Defines the structured query representation using Pydantic.
+
+The current `QueryPlan` contains:
+
+```text
+metric
+operation
+group_by
+filters
+sort
+limit
+```
 
 Example:
 
-``` text
+```json
+{
+  "metric": "profit",
+  "operation": "sum",
+  "group_by": ["city"],
+  "filters": [],
+  "sort": {
+    "column": "profit",
+    "direction": "desc"
+  },
+  "limit": 2
+}
+```
+
+---
+
+## `app/llm_parser.py`
+
+Responsible for converting natural-language questions into `QueryPlan` objects.
+
+The parser:
+
+1. Loads the data dictionary.
+2. Provides semantic definitions to the LLM.
+3. Provides explicit parsing rules.
+4. Requests structured JSON output.
+5. Parses the response.
+6. Validates the response using Pydantic.
+
+The prompt also contains rules for:
+
+* metric synonyms
+* customer terminology
+* product terminology
+* month interpretation
+* top-N queries
+* per-group ranking
+* target comparisons
+* contribution calculations
+* YoY queries
+* supported filters
+* sorting
+
+For example, because the dataset contains 2024 data, an unspecified month such as:
+
+```text
+March
+```
+
+is interpreted as:
+
+```text
+2024-03
+```
+
+rather than using the current calendar year.
+
+---
+
+## `app/validator.py`
+
+Performs semantic validation after Pydantic validation.
+
+It checks whether the generated plan uses supported:
+
+* metrics
+* dimensions
+* filter columns
+* limits
+* operations
+
+This provides a second layer of protection between the LLM and executor.
+
+---
+
+## `app/confidence.py`
+
+Calculates a deterministic confidence score from the validated query plan.
+
+The score considers whether relevant components such as the following are present:
+
+```text
+metric
+operation
+grouping
+filters
+sorting
+limit
+```
+
+Invalid plans receive:
+
+```text
+0.0
+```
+
+---
+
+## `app/query_executor.py`
+
+Executes validated plans using Pandas.
+
+Currently supported operations include:
+
+```text
+sum
+average
+count
+contribution
+target_comparison
+yoy
+```
+
+Supported metrics include:
+
+```text
+revenue
+profit
+orders
+avg_order_value
+```
+
+The executor also handles grouped operations and ranking patterns such as top-N results within groups.
+
+The executor is deliberately separated from the LLM.
+
+---
+
+## `app/main.py`
+
+Provides the main application pipeline through `run_query()`.
+
+The flow is:
+
+```text
+Load data
+    ↓
+Load dictionary
+    ↓
+Parse natural language
+    ↓
+Validate plan
+    ↓
+Calculate confidence
+    ↓
+Execute query
+    ↓
+Return structured response
+```
+
+The application returns the query, generated logic, result, confidence score, and explanation.
+
+---
+
+## `test.py`
+
+Runs the benchmark queries stored in:
+
+```text
+dataset/nl_queries.json
+```
+
+It executes each query through the complete application pipeline and prints a JSON-compatible response containing:
+
+```text
+query
+generated_logic
+result
+confidence_score
+explanation
+```
+
+This acts as an end-to-end benchmark runner.
+
+A separate deterministic unit-test suite can be used for testing the execution layer independently from the LLM.
+
+---
+
+# 8. Dataset
+
+The repository contains four primary dataset/configuration files.
+
+## `sales_data.csv`
+
+Contains transactional sales data.
+
+Important fields include:
+
+```text
+order_id
+order_date
+region
+country
+city
+customer_id
+customer_segment
+product_category
+product_subcategory
+product_name
+quantity
+unit_price
+discount
+shipping_cost
+profit
+```
+
+The application derives:
+
+```text
+year
+month
+quarter
+revenue
+```
+
+from the raw data.
+
+---
+
+## `targets.csv`
+
+Contains monthly regional revenue targets.
+
+Example:
+
+```csv
+region,month,target_revenue
+APAC,2024-01,5000
+APAC,2024-02,6000
+APAC,2024-03,7000
+```
+
+This enables target-comparison queries.
+
+---
+
+## `data_dictionary.json`
+
+Defines the semantic vocabulary used by the query engine.
+
+It contains information about:
+
+* metrics
+* dimensions
+* synonyms
+* time mappings
+* analytical definitions
+
+Example:
+
+```json
+{
+  "metrics": {
+    "revenue": "quantity * unit_price * (1 - discount)",
+    "profit": "profit",
+    "orders": "count(order_id)",
+    "avg_order_value": "revenue / orders"
+  }
+}
+```
+
+The dictionary is provided to the LLM so that natural-language interpretation remains grounded in the actual dataset.
+
+---
+
+## `nl_queries.json`
+
+Contains the natural-language benchmark questions and their expected analytical logic.
+
+The current benchmark covers eight representative query types:
+
+1. Filtered aggregation
+2. Top-N ranking
+3. Grouped average order value
+4. Target comparison
+5. Contribution percentage
+6. Per-group top-product analysis
+7. Year-over-year analysis
+8. Top-customer analysis by region
+
+---
+
+# 9. Query Processing Pipeline
+
+## Step 1 — Natural-Language Input
+
+Example:
+
+```text
 Total sales in India for March
 ```
 
-Equivalent analytical logic:
+---
 
-``` text
+## Step 2 — LLM Interpretation
+
+The LLM converts the question into a structured plan:
+
+```json
+{
+  "metric": "revenue",
+  "operation": "sum",
+  "group_by": [],
+  "filters": [
+    {
+      "column": "country",
+      "operator": "=",
+      "value": "India"
+    },
+    {
+      "column": "month",
+      "operator": "=",
+      "value": "2024-03"
+    }
+  ],
+  "sort": null,
+  "limit": null
+}
+```
+
+---
+
+## Step 3 — Pydantic Validation
+
+Pydantic verifies that the generated structure conforms to the `QueryPlan` schema.
+
+For example, an unsupported operation such as:
+
+```text
+median
+```
+
+cannot be accepted by the current schema.
+
+---
+
+## Step 4 — Semantic Validation
+
+The validator verifies that the requested metric, dimensions, filters, and other fields are supported by the application.
+
+---
+
+## Step 5 — Confidence Calculation
+
+A deterministic confidence score is calculated from the validated plan.
+
+---
+
+## Step 6 — Controlled Execution
+
+The executor maps the plan to known Pandas operations.
+
+For example:
+
+```text
+metric = revenue
+operation = sum
+country = India
+month = 2024-03
+```
+
+becomes a controlled dataframe filtering and aggregation operation.
+
+---
+
+## Step 7 — Result and Explanation
+
+The application converts the internal Pandas result into JSON-compatible output and generates a human-readable explanation based on the executed plan.
+
+---
+
+# 10. Supported Query Types
+
+## 10.1 Simple Aggregation
+
+Example:
+
+```text
+Total sales in India for March
+```
+
+Analytical logic:
+
+```text
 SUM(revenue)
 WHERE country = 'India'
 AND month = '2024-03'
 ```
 
-------------------------------------------------------------------------
+For the sample dataset:
 
-### 7.2 Grouped aggregation
+```text
+Revenue = 1 × 120 × (1 - 0.10)
+        = 108
+```
+
+---
+
+## 10.2 Grouped Aggregation and Top-N
 
 Example:
 
-``` text
+```text
 Top 2 cities by profit
 ```
 
 Conceptually:
 
-``` text
+```text
 GROUP BY city
-ORDER BY SUM(profit) DESC
+       ↓
+SUM(profit)
+       ↓
+ORDER BY profit DESC
+       ↓
 LIMIT 2
 ```
 
-------------------------------------------------------------------------
+Sample result:
 
-### 7.3 Average order value
+```text
+New York        200
+San Francisco   180
+```
+
+---
+
+## 10.3 Average Order Value
 
 Example:
 
-``` text
+```text
 Average order value by region
 ```
 
 The engine calculates:
 
-``` text
+```text
 SUM(revenue) / COUNT(order_id)
 ```
 
 for each region.
 
-------------------------------------------------------------------------
+For example:
 
-### 7.4 Target comparison
+```text
+APAC  → 118.5
+EMEA  → 799.3333...
+NA    → 1087.4667...
+```
+
+---
+
+## 10.4 Target Comparison
 
 Example:
 
-``` text
+```text
 Which region missed its target in Feb?
 ```
 
 The engine:
 
-1.  Aggregates regional revenue.
-2.  Identifies the requested month.
-3.  Loads the corresponding target values.
-4.  Joins revenue with targets.
-5.  Compares actual revenue with target revenue.
+1. Identifies the requested month.
+2. Aggregates actual regional revenue.
+3. Loads the corresponding target values.
+4. Joins actual revenue with targets.
+5. Determines whether the target was missed when a target exists.
 
-------------------------------------------------------------------------
+An important distinction is made between:
 
-### 7.5 Contribution percentage
+```text
+target missed
+```
+
+and:
+
+```text
+target unavailable
+```
+
+If a region does not have a target entry for the requested month, the engine does not incorrectly classify it as having missed the target.
+
+---
+
+## 10.5 Contribution Percentage
 
 Example:
 
-``` text
+```text
 Sales contribution % by category
 ```
 
 Conceptually:
 
-``` text
+```text
 category revenue
 ---------------- × 100
 total revenue
 ```
 
-------------------------------------------------------------------------
+The resulting output contains the relevant category, revenue, and contribution percentage.
 
-### 7.6 Year-over-year analysis
+---
+
+## 10.6 Per-Group Top Product
 
 Example:
 
-``` text
+```text
+Top product in each region
+```
+
+This requires:
+
+```text
+GROUP BY region + product
+        ↓
+Calculate revenue
+        ↓
+Rank products within each region
+        ↓
+Keep the highest-ranked product
+```
+
+The executor supports this through grouped ranking behavior.
+
+---
+
+## 10.7 Year-over-Year Analysis
+
+Example:
+
+```text
 YoY growth in revenue
 ```
 
-The engine compares revenue across years.
+The engine compares revenue across available years.
 
-If the dataset does not contain both the current and previous year, the
-engine returns an explicit error instead of fabricating a value.
+If the dataset contains only one year, a YoY calculation cannot be legitimately performed.
 
-For example:
+Instead of fabricating a historical value, the engine returns an explicit error such as:
 
-``` json
+```json
 [
   {
     "error": "At least two years of data are required."
@@ -701,42 +1043,43 @@ For example:
 ]
 ```
 
-This is intentional: analytical systems should report insufficient data
-rather than invent missing historical values.
+This follows the principle:
 
-------------------------------------------------------------------------
+> **Insufficient data should produce an explicit error rather than an invented analytical result.**
 
-## 8. Advanced Query Handling
+---
 
-Some natural-language questions require more than a single aggregation.
+# 11. Advanced Query Handling
+
+Some natural-language questions require multiple analytical stages.
 
 For example:
 
-``` text
+```text
 Top product in each region
 ```
 
 requires:
 
-``` text
+```text
 GROUP BY region + product
         ↓
 Calculate revenue
         ↓
-Rank products within each region
+Rank within each region
         ↓
-Keep the top product
+Select top product
 ```
 
 Similarly:
 
-``` text
+```text
 Revenue of top 3 customers per region
 ```
 
 requires:
 
-``` text
+```text
 GROUP BY region + customer
         ↓
 Calculate customer revenue
@@ -745,65 +1088,65 @@ Rank customers within each region
         ↓
 Keep top 3
         ↓
-Aggregate their revenue by region
+Aggregate selected customers by region
 ```
 
-These operations are represented as higher-level analytical plans rather
-than arbitrary generated code.
+The current query-plan representation expresses these ranking patterns using grouping, sorting, and limits.
 
-The query-plan schema is designed to be extended with ranking/window
-semantics for these nested operations.
+The architecture can later be extended with explicit ranking and nested-aggregation semantics for more complex analytical queries.
 
-------------------------------------------------------------------------
+---
 
-## 9. Why Use an LLM?
+# 12. Why Use an LLM?
 
-A traditional rule-based parser could handle a fixed set of phrases, but
-natural-language business questions have many variations.
+A traditional rule-based parser could recognize a fixed set of phrases, but business users can express the same intent in many different ways.
 
-For example, all of these can refer to revenue:
+For example:
 
-``` text
-sales
-income
-revenue
-earnings
-```
-
-And a user may phrase the same intent as:
-
-``` text
+```text
 Show sales for India in March
 ```
 
-or:
+and:
 
-``` text
+```text
 What was the revenue generated in India during March?
 ```
 
-The LLM provides the language understanding layer.
+can represent the same analytical intent.
 
-However, it is **not trusted with execution**.
+Similarly:
 
-The architecture deliberately separates:
+```text
+sales
+revenue
+income
+```
 
-``` text
-Language understanding
+may refer to the same canonical metric in the context of this dataset.
+
+The LLM provides the language-understanding layer needed to handle these variations.
+
+However, the model is deliberately **not trusted with execution**.
+
+The architecture separates:
+
+```text
+Language Understanding
         ≠
-Analytical execution
+Analytical Execution
 ```
 
 This makes the system easier to validate, test, and extend.
 
-------------------------------------------------------------------------
+---
 
-## 10. Why Structured Query Plans?
+# 13. Why Structured Query Plans?
 
-An alternative approach would be:
+An alternative architecture would be:
 
-``` text
-User query
+```text
+User Query
     ↓
 LLM
     ↓
@@ -812,316 +1155,312 @@ Generated Python / SQL
 Execute
 ```
 
-That approach has significant drawbacks.
+This creates several risks:
 
-The model could generate:
-
--   invalid syntax
--   unsupported columns
--   incorrect calculations
--   unintended operations
--   arbitrary code
+* invalid syntax
+* unsupported columns
+* incorrect calculations
+* unintended operations
+* arbitrary code execution
 
 This project instead uses:
 
-``` text
-User query
+```text
+User Query
     ↓
 LLM
     ↓
 Structured JSON
     ↓
-Pydantic validation
+Pydantic Validation
     ↓
-Controlled executor
+Semantic Validation
+    ↓
+Controlled Executor
 ```
 
-The model can only express operations that the application explicitly
-supports.
+The model can therefore express only analytical operations that the application explicitly supports.
 
-------------------------------------------------------------------------
+---
 
-## 11. Confidence Scoring
+# 14. Confidence Scoring
 
-The confidence score currently uses deterministic features of the query
-plan.
+The current confidence mechanism is intentionally deterministic.
 
 The base score is:
 
-``` text
+```text
 0.40
 ```
 
-Additional points are assigned when relevant plan components are
-present:
+Additional points are assigned when relevant components are present:
 
-  Component      Contribution
-  ------------ --------------
-  Valid plan         Required
-  Metric                +0.15
-  Operation             +0.15
-  Grouping              +0.10
-  Filters               +0.10
-  Sorting               +0.05
-  Limit                 +0.05
+| Component  | Contribution |
+| ---------- | -----------: |
+| Valid plan |     Required |
+| Metric     |        +0.15 |
+| Operation  |        +0.15 |
+| Grouping   |        +0.10 |
+| Filters    |        +0.10 |
+| Sorting    |        +0.05 |
+| Limit      |        +0.05 |
 
 The final score is capped at:
 
-``` text
+```text
 1.0
 ```
 
-This is intentionally a simple first version.
+Invalid plans receive:
 
-A future implementation can make confidence more meaningful by
-incorporating:
+```text
+0.0
+```
 
--   parser consistency
--   validation coverage
--   ambiguity detection
--   execution success
--   benchmark accuracy
--   historical user feedback
--   agreement between multiple candidate plans
+This is a heuristic confidence measure, not a calibrated probability.
 
-------------------------------------------------------------------------
+A more advanced implementation could incorporate:
 
-## 12. Error Handling Philosophy
+* ambiguity detection
+* parser consistency
+* validation coverage
+* execution success
+* benchmark accuracy
+* historical user feedback
+* agreement between multiple candidate plans
 
-The engine follows an important principle:
+---
+
+# 15. Error Handling Philosophy
+
+The system follows a simple principle:
 
 > **Fail explicitly rather than silently returning an invented result.**
 
 Examples include:
 
-### Missing environment variable
+### Missing API key
 
-``` text
+```text
 GROQ_API_KEY is not set.
 ```
 
 ### Unsupported metric
 
-``` text
+```text
 Unsupported metric: ...
 ```
 
 ### Unsupported dimension
 
-``` text
+```text
 Unsupported dimension: ...
 ```
 
 ### Insufficient historical data
 
-``` text
+```text
 At least two years of data are required.
 ```
 
 ### Invalid LLM output
 
-The Pydantic validation layer rejects malformed query plans before
-execution.
+Malformed or structurally invalid query plans are rejected by the Pydantic validation layer.
 
-------------------------------------------------------------------------
+---
 
-## 13. Setup
+# 16. Setup
 
-### 13.1 Clone the repository
+## 16.1 Clone the Repository
 
-``` bash
+```bash
 git clone <repository-url>
 cd analytics-engine
 ```
 
-------------------------------------------------------------------------
+---
 
-### 13.2 Create a virtual environment
+## 16.2 Create a Virtual Environment
 
-Windows:
+### Windows
 
-``` bash
+```bash
 python -m venv venv
 venv\Scripts\activate
 ```
 
-Linux/macOS:
+### Linux / macOS
 
-``` bash
+```bash
 python -m venv venv
 source venv/bin/activate
 ```
 
-------------------------------------------------------------------------
+---
 
-### 13.3 Install dependencies
+## 16.3 Install Dependencies
 
-``` bash
+```bash
 pip install -r requirements.txt
 ```
 
-------------------------------------------------------------------------
+---
 
-### 13.4 Configure the Groq API key
+## 16.4 Configure the Groq API Key
 
 Create a `.env` file in the project root:
 
-``` env
+```env
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
 Do not commit `.env` to Git.
 
-The repository's `.gitignore` already excludes it.
+The repository's `.gitignore` should exclude the file.
 
-------------------------------------------------------------------------
+---
 
-## 14. Running the Application
+# 17. Running the Application
 
 From the project root:
 
-``` bash
+```bash
 python -m app.main
 ```
 
-You will be prompted:
+The application prompts:
 
-``` text
+```text
 Enter your analytics query:
 ```
 
-Example:
+For example:
 
-``` text
+```text
 Enter your analytics query: Total sales in India for March
 ```
 
-The application prints:
+The application displays the query, generated plan, result, and confidence information.
 
-``` text
-============================================================
+The output contains the same core information exposed by the JSON response:
+
+```text
 QUERY
-============================================================
-
-Total sales in India for March
-
-============================================================
 PLAN
-============================================================
-
-...
-
-============================================================
 RESULT
-============================================================
-
-...
-
-============================================================
 CONFIDENCE
-============================================================
-
-...
 ```
 
-------------------------------------------------------------------------
+---
 
-## 15. Running the Benchmark
+# 18. Running the Benchmark
 
-The repository includes `test.py`, which runs every query in:
+The repository contains benchmark queries in:
 
-``` text
+```text
 dataset/nl_queries.json
 ```
 
 Run:
 
-``` bash
+```bash
 python test.py
 ```
 
-The output contains the query and its result in JSON-compatible form.
+The runner executes every benchmark query through the complete pipeline and prints JSON-compatible output.
 
-Example:
+A typical result has the form:
 
-``` json
+```json
 {
   "query": "Total sales in India for March",
+  "generated_logic": "{\"metric\":\"revenue\",\"operation\":\"sum\",...}",
   "result": [
     {
       "value": 108.0
     }
-  ]
+  ],
+  "confidence_score": 0.8,
+  "explanation": "Computed sum of revenue with filters: country = India, month = 2024-03."
 }
 ```
 
-------------------------------------------------------------------------
+The benchmark intentionally exercises different parts of the system rather than testing only simple aggregations.
 
-## 16. Testing
+---
 
-The project uses `pytest` for automated tests.
+# 19. Testing Strategy
+
+The project includes `pytest` as the testing framework.
 
 Run:
 
-``` bash
+```bash
 pytest
 ```
 
-Tests can be added for:
+A robust testing strategy separates the system into two major layers.
 
--   data loading
--   schema validation
--   filter handling
--   aggregation correctness
--   contribution calculations
--   target comparisons
--   time-series calculations
--   ranking operations
--   end-to-end natural-language queries
+### LLM / Parsing Tests
 
-A recommended testing strategy is to test the deterministic execution
-layer separately from the LLM layer.
+These tests verify whether natural language is correctly converted into a query plan.
 
-For example:
-
-``` text
-LLM tests
-    ↓
-Does natural language produce the expected plan?
-
-Executor tests
-    ↓
-Does a known plan produce the expected result?
+```text
+Natural Language
+       ↓
+LLM Parser
+       ↓
+Expected QueryPlan
 ```
 
-This separation makes failures easier to diagnose.
+### Executor Tests
 
-------------------------------------------------------------------------
+These tests bypass the LLM and directly provide known query plans.
 
-## 17. Example Results
+```text
+Known QueryPlan
+       ↓
+Query Executor
+       ↓
+Expected Result
+```
 
-With the current sample dataset:
+This separation is important because an LLM failure and an execution failure are fundamentally different problems.
 
-### Total sales in India for March
+For example, if:
 
-The March India transaction has:
+```text
+Top 2 cities by profit
+```
 
-``` text
-quantity = 1
+produces an incorrect plan, the parser is the likely source of the problem.
+
+If the plan is correct but the result is wrong, the executor is the likely source.
+
+---
+
+# 20. Example Results
+
+## Total Sales in India for March
+
+The relevant transaction has:
+
+```text
+quantity   = 1
 unit_price = 120
-discount = 10%
+discount   = 10%
 ```
 
 Therefore:
 
-``` text
+```text
 revenue = 1 × 120 × (1 - 0.10)
         = 108
 ```
 
-The engine returns:
+Result:
 
-``` json
+```json
 [
   {
     "value": 108.0
@@ -1129,359 +1468,21 @@ The engine returns:
 ]
 ```
 
-------------------------------------------------------------------------
+---
 
-### Average order value by region
+## Top 2 Cities by Profit
 
-The engine calculates regional revenue divided by the number of orders
-in each region.
+The query is interpreted as:
 
-Example output:
-
-``` json
-[
-  {
-    "region": "APAC",
-    "avg_order_value": 118.5
-  },
-  {
-    "region": "EMEA",
-    "avg_order_value": 799.3333333333334
-  }
-]
+```text
+GROUP BY city
+ORDER BY profit DESC
+LIMIT 2
 ```
 
-------------------------------------------------------------------------
+Result:
 
-### Sales contribution by category
-
-The engine calculates each category's percentage of total revenue.
-
-Conceptually:
-
-``` text
-category revenue / total revenue × 100
-```
-
-The result is returned with:
-
-``` text
-product_category
-revenue
-contribution_pct
-```
-
-------------------------------------------------------------------------
-
-## 18. Security and Reliability Considerations
-
-The system intentionally avoids executing arbitrary model-generated
-code.
-
-The LLM does **not** directly generate:
-
-``` python
-eval(...)
-exec(...)
-```
-
-or unrestricted SQL/Python for execution.
-
-Instead, it generates a constrained data structure.
-
-Additional protections include:
-
--   Pydantic schema validation
--   explicit metric allowlists
--   explicit dimension allowlists
--   explicit operator allowlists
--   controlled pandas execution
--   environment-based API-key configuration
--   `.gitignore` protection for secrets
-
-The model should therefore be treated as an **intent parser**, not as a
-trusted program generator.
-
-------------------------------------------------------------------------
-
-## 19. Design Decisions
-
-### Decision 1 --- Pandas instead of generated SQL
-
-The dataset is small and tabular, making pandas a simple and transparent
-execution backend.
-
-The same query-plan abstraction could later be translated into SQL for
-larger datasets.
-
-------------------------------------------------------------------------
-
-### Decision 2 --- LLM + deterministic execution
-
-The LLM is useful for interpreting ambiguous language, while
-deterministic code is better suited to executing calculations.
-
-This separation gives the system both:
-
--   natural-language flexibility
--   reproducible analytical execution
-
-------------------------------------------------------------------------
-
-### Decision 3 --- Data dictionary as semantic grounding
-
-The data dictionary gives the model a controlled vocabulary.
-
-For example:
-
-``` text
-sales → revenue
-AOV → average order value
-orders → count(order_id)
-```
-
-This reduces ambiguity and keeps the parser aligned with the dataset.
-
-------------------------------------------------------------------------
-
-### Decision 4 --- Explicit unsupported-data errors
-
-If the dataset cannot answer a question, the engine should say so.
-
-For example, the sample dataset only contains 2024 data. Therefore, a
-YoY calculation requiring 2023 cannot legitimately be computed.
-
-------------------------------------------------------------------------
-
-## 20. Current Limitations
-
-The current version is an intentionally lightweight prototype.
-
-### Advanced ranking
-
-Queries involving nested ranking, such as:
-
-``` text
-Revenue of top 3 customers per region
-```
-
-require a richer query-plan representation than simple aggregation.
-
-The architecture is designed to support this through explicit ranking
-semantics rather than hard-coded natural-language string matching.
-
-### Small sample dataset
-
-The included dataset is small and mainly intended for demonstrating the
-query engine.
-
-A production implementation would need to consider:
-
--   large datasets
--   incremental loading
--   query caching
--   database execution
--   distributed processing
-
-### Confidence model
-
-The current confidence score is heuristic rather than statistically
-calibrated.
-
-### Limited query language
-
-Only predefined analytical operations are supported.
-
-Future versions can extend the schema with:
-
--   ranking
--   window functions
--   nested aggregations
--   date ranges
--   rolling metrics
--   percent change
--   conditional metrics
--   multiple filters
--   joins
--   more complex time-series operations
-
-### LLM dependency
-
-Natural-language parsing currently depends on access to the configured
-Groq API.
-
-The deterministic executor itself does not require an LLM once a valid
-query plan is available.
-
-------------------------------------------------------------------------
-
-## 21. Future Improvements
-
-Potential next steps include:
-
-### 1. Richer query-plan schema
-
-Add explicit structures for:
-
-``` text
-ranking
-partitioning
-nested aggregation
-window functions
-post-aggregation
-```
-
-------------------------------------------------------------------------
-
-### 2. Better confidence estimation
-
-Combine:
-
-``` text
-schema validity
-+ semantic validation
-+ ambiguity detection
-+ execution success
-+ historical feedback
-```
-
-------------------------------------------------------------------------
-
-### 3. Feedback loop
-
-A future `feedback_log.csv` can store:
-
-``` text
-query
-generated_plan
-result
-user_feedback
-corrected_plan
-```
-
-This can be used to identify recurring parser failures and improve
-prompts or parsing strategies.
-
-------------------------------------------------------------------------
-
-### 4. Query explanation
-
-The system can return a human-readable explanation such as:
-
-``` text
-I interpreted "sales" as revenue, filtered the data to India
-and March 2024, and calculated the sum of revenue.
-```
-
-This makes the system easier to audit.
-
-------------------------------------------------------------------------
-
-### 5. Database backend
-
-For larger datasets, the controlled query plan could be compiled into
-SQL instead of pandas operations:
-
-``` text
-Natural Language
-      ↓
-Query Plan
-      ↓
-Validation
-      ↓
-SQL Compiler
-      ↓
-Database
-```
-
-The important abstraction would remain the same.
-
-------------------------------------------------------------------------
-
-### 6. Caching
-
-Repeated natural-language queries could cache their parsed plans and/or
-results.
-
-For example:
-
-``` text
-"Total sales in India for March"
-```
-
-does not necessarily need to be sent to the LLM every time.
-
-------------------------------------------------------------------------
-
-### 7. API layer
-
-The current project exposes the core functionality through Python.
-
-A future version could expose:
-
-``` text
-POST /query
-```
-
-with:
-
-``` json
-{
-  "query": "Total sales in India for March"
-}
-```
-
-and return:
-
-``` json
-{
-  "query": "...",
-  "plan": {...},
-  "result": [...],
-  "confidence": 0.9
-}
-```
-
-------------------------------------------------------------------------
-
-## 22. Example End-to-End Flow
-
-For:
-
-``` text
-Top 2 cities by profit
-```
-
-the complete flow is:
-
-``` text
-User
- │
- │ "Top 2 cities by profit"
- ▼
-LLM Parser
- │
- │ structured JSON
- ▼
-Pydantic QueryPlan
- │
- │ validated plan
- ▼
-Validator
- │
- │ valid
- ▼
-Confidence Calculator
- │
- │ confidence score
- ▼
-Query Executor
- │
- │ pandas groupby + aggregation
- ▼
-Result
- │
- ▼
+```json
 [
   {
     "city": "New York",
@@ -1494,16 +1495,438 @@ Result
 ]
 ```
 
+---
+
+## Average Order Value by Region
+
+The engine calculates:
+
+```text
+SUM(revenue) / COUNT(order_id)
+```
+
+The sample dataset produces approximately:
+
+```text
+APAC → 118.5
+EMEA → 799.3333
+NA   → 1087.4667
+```
+
+---
+
+## Sales Contribution by Category
+
+The engine calculates:
+
+```text
+category revenue / total revenue × 100
+```
+
+and returns the category-level contribution alongside the corresponding revenue.
+
+---
+
+# 21. Security and Reliability
+
+The system intentionally avoids executing arbitrary model-generated code.
+
+The LLM does not directly generate executable:
+
+```python
+eval(...)
+```
+
+or:
+
+```python
+exec(...)
+```
+
+operations.
+
+Instead, it generates a constrained data structure.
+
+Additional safeguards include:
+
+* Pydantic schema validation
+* explicit metric allowlists
+* explicit dimension allowlists
+* explicit filter/operator allowlists
+* controlled Pandas execution
+* environment-based API-key configuration
+* `.gitignore` protection for secrets
+
+The LLM should therefore be treated as an **intent parser**, not as a trusted program generator.
+
+---
+
+# 22. Key Design Decisions
+
+## Decision 1 — Pandas Instead of Generated SQL
+
+The included dataset is small and tabular, making Pandas a simple and transparent execution backend.
+
+For a larger production dataset, the same query-plan abstraction could be compiled into SQL and executed against a database.
+
+The important abstraction is:
+
+```text
+Natural Language
+       ↓
+QueryPlan
+       ↓
+Execution Backend
+```
+
+rather than tying the entire architecture directly to Pandas.
+
+---
+
+## Decision 2 — LLM + Deterministic Execution
+
+LLMs are useful for understanding flexible language.
+
+Deterministic code is better suited to performing calculations.
+
+The architecture therefore separates:
+
+```text
+LLM
+Language Understanding
+```
+
+from:
+
+```text
+Pandas
+Analytical Execution
+```
+
+This provides natural-language flexibility while keeping calculations reproducible.
+
+---
+
+## Decision 3 — Data Dictionary as Semantic Grounding
+
+The data dictionary gives the model a controlled vocabulary.
+
+For example:
+
+```text
+sales  → revenue
+AOV    → average order value
+orders → count(order_id)
+```
+
+This reduces ambiguity and keeps the parser aligned with the actual dataset.
+
+---
+
+## Decision 4 — Explicit Unsupported-Data Errors
+
+If the dataset cannot answer a question, the system should state that explicitly.
+
+For example, the sample dataset contains only 2024 data.
+
+Therefore:
+
+```text
+YoY growth in revenue
+```
+
+cannot be calculated without another year of observations.
+
+The system reports insufficient data instead of fabricating a historical value.
+
+---
+
+# 23. Current Limitations
+
+The current implementation is intentionally lightweight and focuses on the core architecture.
+
+## Limited Query Language
+
+Only predefined analytical operations are currently supported.
+
+Future extensions could include:
+
+```text
+ranking
+window functions
+nested aggregations
+date ranges
+rolling metrics
+percent change
+conditional metrics
+joins
+```
+
+---
+
+## Confidence Model
+
+The current confidence score is heuristic.
+
+It reflects structural characteristics of the generated plan but is not statistically calibrated.
+
+---
+
+## Small Dataset
+
+The included dataset is intended primarily for demonstrating the architecture.
+
+A production implementation would need to address:
+
+* large datasets
+* incremental loading
+* query caching
+* database execution
+* distributed processing
+
+---
+
+## LLM Dependency
+
+Natural-language parsing depends on access to the configured Groq API.
+
+The deterministic execution layer itself does not require an LLM once a valid `QueryPlan` has been produced.
+
+---
+
+## More Complex Nested Analytics
+
+Queries such as:
+
+```text
+Revenue of top 3 customers per region
+```
+
+require multiple analytical stages.
+
+The current implementation handles the benchmark pattern, but a more general query language would benefit from explicit ranking, partitioning, and nested aggregation fields in the query-plan schema.
+
+---
+
+# 24. Future Improvements
+
+## 1. Richer Query-Plan Schema
+
+Extend the schema with explicit structures for:
+
+```text
+ranking
+partitioning
+nested aggregation
+window functions
+post-aggregation operations
+```
+
+This would make complex analytical queries more explicit instead of representing them through combinations of existing fields.
+
+---
+
+## 2. Improved Confidence Estimation
+
+A future confidence model could combine:
+
+```text
+Schema validity
+       +
+Semantic validation
+       +
+Ambiguity detection
+       +
+Execution success
+       +
+Benchmark accuracy
+       +
+Historical feedback
+```
+
+This would make the score more meaningful than the current heuristic.
+
+---
+
+## 3. Feedback Loop
+
+A future `feedback_log.csv` could store:
+
+```text
+query
+generated_plan
+result
+user_feedback
+corrected_plan
+```
+
+Recurring parser failures could then be analyzed and used to improve the prompt or parsing strategy.
+
+---
+
+## 4. Better Query Explanations
+
+The system could produce explanations such as:
+
+```text
+I interpreted "sales" as revenue, filtered the data to India
+and March 2024, and calculated the sum of revenue.
+```
+
+This would make the system easier to audit and understand.
+
+---
+
+## 5. Database Backend
+
+For larger datasets, the query plan could be compiled into SQL:
+
+```text
+Natural Language
+       ↓
+QueryPlan
+       ↓
+Validation
+       ↓
+SQL Compiler
+       ↓
+Database
+```
+
+The query-plan abstraction would remain independent of the underlying execution backend.
+
+---
+
+## 6. Query Caching
+
+Repeated queries could cache their parsed plans and/or results.
+
+For example:
+
+```text
+"Total sales in India for March"
+```
+
+would not necessarily need to invoke the LLM every time.
+
+---
+
+## 7. API Layer
+
+The core Python functionality could later be exposed through an API such as:
+
+```text
+POST /query
+```
+
+Request:
+
+```json
+{
+  "query": "Total sales in India for March"
+}
+```
+
+Response:
+
+```json
+{
+  "query": "Total sales in India for March",
+  "generated_logic": "...",
+  "result": [
+    {
+      "value": 108.0
+    }
+  ],
+  "confidence_score": 0.8,
+  "explanation": "..."
+}
+```
+
+This would allow the same engine to power a web or mobile interface.
+
+---
+
+# 25. End-to-End Example
+
+Consider:
+
+```text
+Top 2 cities by profit
+```
+
+The complete flow is:
+
+```text
+                         USER
+                           │
+                           │
+                           ▼
+               "Top 2 cities by profit"
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │    LLM Parser   │
+                  │ Language → Plan │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Pydantic Schema │
+                  │ Structure Check │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │    Validator    │
+                  │ Semantic Checks │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │    Confidence   │
+                  │     Scoring     │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Query Executor  │
+                  │     Pandas      │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │     Result      │
+                  └─────────────────┘
+```
+
+The resulting analytical plan is conceptually:
+
+```json
+{
+  "metric": "profit",
+  "operation": "sum",
+  "group_by": ["city"],
+  "filters": [],
+  "sort": {
+    "column": "profit",
+    "direction": "desc"
+  },
+  "limit": 2
+}
+```
+
+The executor then performs the corresponding Pandas operations.
+
 The model never directly executes the aggregation.
 
-------------------------------------------------------------------------
+---
 
-## 23. Core Design Principle
+# 26. Core Design Principle
 
-The most important architectural decision in this project is the
-separation of concerns:
+The most important architectural decision in this project is the separation of concerns:
 
-``` text
+```text
 ┌───────────────────────────────┐
 │       Natural Language        │
 └───────────────┬───────────────┘
@@ -1522,36 +1945,259 @@ separation of concerns:
                 │
                 ▼
 ┌───────────────────────────────┐
-│          Validator            │
-│     Semantic Constraints      │
+│           Validator           │
+│      Semantic Constraints      │
 └───────────────┬───────────────┘
                 │
                 ▼
 ┌───────────────────────────────┐
-│      Confidence Layer         │
+│       Confidence Layer        │
 └───────────────┬───────────────┘
                 │
                 ▼
 ┌───────────────────────────────┐
 │       Query Executor          │
-│       Controlled Pandas       │
+│      Controlled Pandas        │
 └───────────────┬───────────────┘
                 │
                 ▼
 ┌───────────────────────────────┐
-│        Analytical Result      │
+│       Analytical Result       │
 └───────────────────────────────┘
 ```
 
-This architecture allows GenAI to provide flexible natural-language
-understanding without giving the model unrestricted control over data
-execution.
+The LLM provides flexible natural-language understanding, while the application retains control over validation and execution.
 
-------------------------------------------------------------------------
+This separation provides a practical balance between **GenAI flexibility and deterministic analytical reliability**.
 
-## 24. License
+---
 
-This project is intended as a take-home / demonstration project.
+# 27. Deliverables
 
-Add an appropriate license here if the repository is later released
-publicly.
+The project deliverables are:
+
+### 1. Code
+
+The complete implementation is provided as a GitHub repository or project archive.
+
+The repository contains:
+
+* application code
+* dataset
+* data dictionary
+* benchmark queries
+* requirements
+* tests
+* README
+
+### 2. README
+
+This document explains:
+
+* project approach
+* architecture
+* query-processing pipeline
+* design decisions
+* tradeoffs
+* supported analytical operations
+* limitations
+* future improvements
+
+### 3. Sample Outputs
+
+The benchmark runner demonstrates the system on representative natural-language business questions and exposes:
+
+```text
+query
+generated_logic
+result
+confidence_score
+explanation
+```
+
+### 4. Potential Improvements
+
+The README documents possible extensions including:
+
+* richer query-plan semantics
+* improved confidence estimation
+* feedback-driven learning
+* query explanations
+* caching
+* database execution
+* API deployment
+
+---
+
+# 28. Benchmark / Test Suite Results
+
+The benchmark suite contains **8 natural-language analytical queries** covering different types of business analysis.
+
+The queries are executed through the complete pipeline:
+
+```text
+Natural Language Query
+        ↓
+Groq LLM Parser
+        ↓
+Pydantic QueryPlan
+        ↓
+Semantic Validation
+        ↓
+Confidence Scoring
+        ↓
+Pandas Executor
+        ↓
+Result
+```
+
+### Benchmark Results
+
+| # | Query                                  | Result                                       | Status   |
+| - | -------------------------------------- | -------------------------------------------- | -------- |
+| 1 | Total sales in India for March         | `108.0`                                      | ✅ PASS   |
+| 2 | Top 2 cities by profit                 | New York: `200`, San Francisco: `180`        | ✅ PASS   |
+| 3 | Average order value by region          | APAC: `118.5`, EMEA: `799.33`, NA: `1087.47` | ✅ PASS   |
+| 4 | Which region missed its target in Feb? | APAC and EMEA missed; NA target unavailable  | ✅ PASS   |
+| 5 | Sales contribution % by category       | Correct category-level revenue contribution  | ✅ PASS   |
+| 6 | Top product in each region             | Correct highest-revenue product per region   | ✅ PASS   |
+| 7 | YoY growth in revenue                  | Explicit insufficient-data response          | ✅ PASS  |
+| 8 | Revenue of top 3 customers per region  | Correct regional top-customer result         | ✅ PASS   |
+
+### Detailed Expected Results
+
+#### 1. Total sales in India for March
+
+```text
+108.0
+```
+
+The parser correctly maps:
+
+```text
+sales → revenue
+March → 2024-03
+```
+
+---
+
+#### 2. Top 2 cities by profit
+
+```text
+New York        200
+San Francisco   180
+```
+
+The system correctly performs global ranking after aggregation.
+
+---
+
+#### 3. Average order value by region
+
+```text
+APAC → 118.5
+EMEA → 799.3333
+NA   → 1087.4667
+```
+
+The executor calculates:
+
+```text
+SUM(revenue) / COUNT(order_id)
+```
+
+for each region.
+
+---
+
+#### 4. Region target comparison for February
+
+```text
+APAC → missed target
+EMEA → missed target
+NA   → target unavailable
+```
+
+The system distinguishes between a region that missed its target and a region for which no target exists.
+
+---
+
+#### 5. Sales contribution by category
+
+The executor correctly calculates:
+
+```text
+category revenue / total revenue × 100
+```
+
+The resulting contributions are approximately:
+
+```text
+Furniture         →  9.4386%
+Office Supplies   →  2.5007%
+Technology        → 88.0608%
+```
+
+---
+
+#### 6. Top product in each region
+
+The system correctly performs ranking within each region:
+
+```text
+APAC → Ergo Chair
+EMEA → Samsung Galaxy
+NA   → Dell XPS
+```
+
+---
+
+#### 7. YoY growth in revenue
+
+The dataset currently contains only one year of sales data.
+
+Therefore, the correct analytical behavior is:
+
+```json
+[
+  {
+    "error": "At least two years of data are required."
+  }
+]
+```
+
+The first benchmark run encountered a temporary Groq API rate-limit response while parsing this query:
+
+---
+
+#### 8. Revenue of top 3 customers per region
+
+The system correctly handles the per-region customer ranking pattern.
+
+For the current sample dataset, each region contains at most three customers, producing:
+
+```text
+APAC → 474.0
+EMEA → 2398.0
+NA   → 3262.4
+```
+
+---
+
+### Overall Evaluation
+
+The benchmark demonstrates that the engine can handle:
+
+```text
+✓ Filtered aggregation
+✓ Global Top-N ranking
+✓ Grouped aggregation
+✓ Derived business metrics
+✓ Target comparison
+✓ Contribution analysis
+✓ Per-group ranking
+✓ Nested customer analysis
+✓ Insufficient-data detection
+```
+
+The benchmark also validates the central architectural principle: **natural-language interpretation is handled by the LLM, while the actual analytical calculations are performed by the deterministic execution layer.**

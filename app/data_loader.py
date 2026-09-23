@@ -10,7 +10,7 @@ from .config import (
 
 
 def load_sales_data():
-    df = pd.read_csv(SALES_DATA_PATH)
+    df = pd.read_csv(SALES_DATA_PATH, keep_default_na=False)
 
     df["order_date"] = pd.to_datetime(df["order_date"])
 

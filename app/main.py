@@ -42,7 +42,7 @@ def run_query(query):
             "query": query,
             "plan": plan.model_dump(),
             "result": None,
-            "confidence": 0.0,
+            "confidence_score": 0.0,
             "errors": validation["errors"],
         }
 
@@ -70,7 +70,7 @@ def run_query(query):
         "query": query,
         "plan": plan.model_dump(),
         "result": result,
-        "confidence": confidence,
+        "confidence_score": confidence,
     }
 
 
@@ -104,4 +104,4 @@ if __name__ == "__main__":
     print("CONFIDENCE")
     print("=" * 60)
 
-    print(response["confidence"])
+    print(response["confidence_score"])
